@@ -15,7 +15,7 @@ using Dates,
 
 import JSON
 
-export WorldClim, CHELSA, EarthEnv, AWAP, ALWB, SRTM, MODIS, ERA5, NCEP, TerraClimate, GRIDMET, SLGA, CoarseFragments
+export WorldClim, CHELSA, EarthEnv, AWAP, ALWB, SRTM, MODIS, ERA5, NCEP, TerraClimate, GRIDMET, SLGA, CoarseFragments, SoilGrids
 
 export BioClim, BioClimPlus, Climate, Weather, Elevation, LandCover, HabitatHeterogeneity
 
@@ -42,7 +42,7 @@ export SixHourlyPressure, SixHourlySurface, DailyPressure, DailySurface, DailySu
 
 export Values, Deciles
 
-export getraster, layername, CachedCloudSource
+export getraster, layername, CachedCloudSource, depths
 
 export Historical, Plus2C, Plus4C
 
@@ -86,6 +86,8 @@ include("gridmet/gridmet.jl")
 
 include("slga/slga.jl")
 include("slga/coarsefragments.jl")
+
+include("soilgrids/soilgrids.jl")
 
 include("interface.jl")
 
