@@ -29,10 +29,12 @@ using SafeTestsets, Aqua, RasterDataSources, Pkg, Dates
 @time @safetestset "worldclim elevation" begin include("worldclim-elevation.jl") end
 # SRTM SSL certs have expired
 # @time @safetestset "srtm" begin include("srtm.jl") end
+@time @safetestset "copernicus dem" begin include("copernicus.jl") end
 # MODIS utilities are broken because the EPSG coordinate transform API is retired
 # @time @safetestset "modis utilities" begin include("modis-utilities.jl") end
 @time @safetestset "modis product info" begin include("modis-products.jl") end
 @time @safetestset "modis extent" begin include("modis-extent.jl") end
 @time @safetestset "ncep" begin include("ncep.jl") end
 @time @safetestset "slga" begin include("slga.jl") end
+@time @safetestset "crucl2" begin include("crucl2.jl") end
 # @time @safetestset "modis interface" begin include("modis-interface.jl") end

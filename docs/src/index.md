@@ -77,6 +77,30 @@ TerraClimate
 NCEP
 ```
 
+## CopernicusDEM
+
+```@docs
+CopernicusDEM
+```
+
+## SRTM
+
+```@docs
+SRTM
+```
+
+## SLGA
+
+```@docs
+SLGA
+```
+
+## CRUCL2
+
+```@docs
+CRUCL2
+```
+
 # Datasets
 
 ```@docs
@@ -88,6 +112,7 @@ Weather
 Elevation
 LandCover
 HabitatHeterogeneity
+CoarseFragments
 Future
 ```
 
