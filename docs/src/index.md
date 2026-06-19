@@ -101,6 +101,13 @@ SLGA
 CRUCL2
 ```
 
+## CPCSoil
+
+```@docs
+CPCSoilMean
+CPCSoil
+```
+
 # Datasets
 
 ```@docs
