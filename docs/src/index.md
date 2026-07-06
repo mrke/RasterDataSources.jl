@@ -119,16 +119,10 @@ Mean
 CPCSoil
 ```
 
-## CRUCL2
+## BARRA
 
 ```@docs
-CRUCL2
-
-## CPCSoil
-
-```@docs
-Mean
-CPCSoil
+BARRA
 ```
 
 # Datasets
