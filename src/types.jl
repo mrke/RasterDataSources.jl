@@ -337,3 +337,6 @@ struct VNP13A1 <: ModisProduct end
 struct VNP15A2H <: ModisProduct end
 struct VNP21A2 <: ModisProduct end
 struct VNP22Q2 <: ModisProduct end
+
+# SoilGrids struct + docstring moved to soilgrids/soilgrids.jl (it needs
+# SOILGRIDS_LAYERS/DEPTHS/QUANTILES, which are defined there, not here).
