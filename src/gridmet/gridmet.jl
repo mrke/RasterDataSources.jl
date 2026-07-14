@@ -74,6 +74,29 @@ Returns the filepath/s of the downloaded or pre-existing files.
 struct GRIDMET <: RasterDataSource end
 
 layers(::Type{GRIDMET}) = keys(GRIDMET_LAYERS)
+
+# The NetCDF variable *inside* each downloaded file is named differently from
+# the short product code above -- e.g. both `tmmx_*.nc` and `tmmn_*.nc` store
+# their data under `air_temperature`, not `tmmx`/`tmmn`. `Raster(T, layer)`
+# (Rasters.jl's RasterDataSources constructor, used for point-based fetches
+# via `Raster(source, name; lazy=true, ...)`) opens the file with
+# `name = layerkeys(T, layer)`, so without this override it looks for a
+# variable literally called `tmmx` and fails with a NetCDF "Variable not
+# found" error -- the area-based `getraster`+`crop` path never hits this
+# because it opens files without a `name` kwarg, which falls back to each
+# file's sole data variable. Verified against the actual downloaded files;
+# extend this if other layers are needed via the point-based path.
+const GRIDMET_VARNAMES = (
+    tmmx = :air_temperature,
+    tmmn = :air_temperature,
+    pr   = :precipitation_amount,
+    rmax = :relative_humidity,
+    rmin = :relative_humidity,
+    srad = :surface_downwelling_shortwave_flux_in_air,
+    vs   = :wind_speed,
+)
+layerkeys(::Type{GRIDMET}, layer::Symbol) = get(GRIDMET_VARNAMES, layer, layer)
+
 date_step(::Type{GRIDMET}) = Year(1)
 date_range(::Type{GRIDMET}) = (Date(1979, 1, 1), Date(2025, 12, 31))
 getraster_keywords(::Type{GRIDMET}) = (:date,)
