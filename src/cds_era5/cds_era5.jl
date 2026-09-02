@@ -140,6 +140,11 @@ function _cds_credentials()
     (url = something(url, CDS_API_URL), key = key)
 end
 
+# The OGC API - Processes endpoints (processes/jobs) live under `/retrieve/v1`
+# below the base `url` from `.cdsapirc`/`ENV["CDSAPI_URL"]` (confirmed live:
+# `<url>/processes/...` 404s, `<url>/retrieve/v1/processes/...` doesn't).
+_cds_api_base(creds) = "$(creds.url)/retrieve/v1"
+
 _cds_dataset_id(::Type{CDSERA5}) = "reanalysis-era5-single-levels"
 _cds_dataset_id(::Type{CDSERA5Land}) = "reanalysis-era5-land"
 
@@ -182,7 +187,7 @@ end
 
 function _cds_submit(T::Type{<:Union{CDSERA5,CDSERA5Land}}, body::Dict)
     creds = _cds_credentials()
-    r = HTTP.request("POST", "$(creds.url)/processes/$(_cds_dataset_id(T))/execution",
+    r = HTTP.request("POST", "$(_cds_api_base(creds))/processes/$(_cds_dataset_id(T))/execution",
         ["PRIVATE-TOKEN" => creds.key, "Content-Type" => "application/json"], JSON.json(body))
     JSON.parse(String(r.body))["jobID"]
 end
@@ -192,7 +197,7 @@ end
 # retries a few transient HTTP errors while polling.
 function _cds_poll(job_id::AbstractString; sleep_seconds = 2.0, max_sleep = 60.0, max_attempts = 200)
     creds = _cds_credentials()
-    url = "$(creds.url)/jobs/$job_id"
+    url = "$(_cds_api_base(creds))/jobs/$job_id"
     for attempt in 1:max_attempts
         status = try
             r = HTTP.request("GET", url, ["PRIVATE-TOKEN" => creds.key])
@@ -214,9 +219,18 @@ function _cds_poll(job_id::AbstractString; sleep_seconds = 2.0, max_sleep = 60.0
 end
 
 # Exact key path to the download link is unverified against a live
-# response -- isolated here for a one-line fix if the real shape differs.
-_cds_result_href(body::Dict) =
-    (asset = body["asset"]; asset isa Dict && haskey(asset, "value") ? asset["value"]["href"] : asset["href"])
+# response. Tries the OGC API - Processes `asset`/`value`/`href` shape from
+# the CDS openapi.json, then the `location` field the `ecmwf-datastores-client`
+# Python `Results` object exposes; errors with the actual top-level keys if
+# neither matches, rather than a bare `KeyError`.
+function _cds_result_href(body::Dict)
+    haskey(body, "location") && return body["location"]
+    if haskey(body, "asset")
+        asset = body["asset"]
+        return asset isa Dict && haskey(asset, "value") ? asset["value"]["href"] : asset["href"]
+    end
+    error("Could not find a download link in the CDS job results. Response keys: $(collect(keys(body)))")
+end
 
 # NetCDF classic starts with magic bytes "CDF"; NetCDF4 is HDF5-based,
 # starting with "\x89HDF". Whether CDS returns one file or a ZIP for a
@@ -236,7 +250,7 @@ end
 
 function _cds_download_result(job_id::AbstractString, target_path)
     creds = _cds_credentials()
-    r = HTTP.request("GET", "$(creds.url)/jobs/$job_id/results", ["PRIVATE-TOKEN" => creds.key])
+    r = HTTP.request("GET", "$(_cds_api_base(creds))/jobs/$job_id/results", ["PRIVATE-TOKEN" => creds.key])
     href = _cds_result_href(JSON.parse(String(r.body)))
     mkpath(dirname(target_path))
     try
