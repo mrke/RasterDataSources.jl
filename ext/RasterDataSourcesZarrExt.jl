@@ -21,10 +21,17 @@ function Base.getindex(s::AuthedHTTPStore, k::AbstractString)
     error("CDS ARCO store request failed: $(r.status) for $(s.url)/$(k)")
 end
 
+# `CachingStore`'s docstring says `zopen` auto-wraps it in `ConsolidatedStore`
+# -- true only for its string-based convenience constructor. Passing an
+# already-built store (as here) skips that, silently returning a group with
+# zero arrays (confirmed live) unless wrapped explicitly.
 RasterDataSources.open_zarr_store(source::CDSZarrSource) = Zarr.zopen(
-    Zarr.CachingStore(
-        AuthedHTTPStore(source.url, ["Authorization" => "Bearer $(RasterDataSources._cds_credentials().key)"]),
-        Zarr.DirectoryStore(source.cache),
+    Zarr.ConsolidatedStore(
+        Zarr.CachingStore(
+            AuthedHTTPStore(source.url, ["Authorization" => "Bearer $(RasterDataSources._cds_credentials().key)"]),
+            Zarr.DirectoryStore(source.cache),
+        ),
+        "",
     )
 )
 
