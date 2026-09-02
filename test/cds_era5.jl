@@ -1,6 +1,6 @@
-using RasterDataSources, URIs, Extents, Test, Dates
+using RasterDataSources, URIs, Extents, Test, Dates, JSON
 using RasterDataSources: rastername, rasterpath, _cds_area, _cds_request_body, _cds_dataset_id,
-    _normalize_cds_variables, _extent_tag
+    _normalize_cds_variables, _extent_tag, _cds_result_href
 
 @testset "CDSERA5 / CDSERA5Land" begin
 
@@ -56,6 +56,16 @@ using RasterDataSources: rastername, rasterpath, _cds_area, _cds_request_body, _
     @test_throws ArgumentError _extent_tag(Extent(X=(149.0, 143.0), Y=(-44.0, -40.0)))
     @test_throws ArgumentError getraster(CDSERA5Land, "2m_temperature";
         date=Date(2020, 2, 1), extent=Extent(X=(149.0, 143.0), Y=(-44.0, -40.0)))
+
+    # Regression: `JSON.parse` output here is a `JSON.Object`, not a
+    # `Base.Dict` -- a `body::Dict`-typed `_cds_result_href` passed hand-built
+    # `Dict` tests but raised a `MethodError` on a real parsed response.
+    # Run through the actual parser, not a hand-built `Dict`, to catch that.
+    @test _cds_result_href(JSON.parse("""{"location": "https://example.com/f.nc"}""")) ==
+        "https://example.com/f.nc"
+    @test _cds_result_href(JSON.parse("""{"asset": {"value": {"href": "https://example.com/g.nc"}}}""")) ==
+        "https://example.com/g.nc"
+    @test_throws ErrorException _cds_result_href(JSON.parse("""{"other": 1}"""))
 
     # Network access requires a CDS API token -- request/path construction
     # only, no download.

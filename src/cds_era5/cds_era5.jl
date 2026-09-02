@@ -185,11 +185,23 @@ function _cds_request_body(
     Dict("inputs" => inputs)
 end
 
-function _cds_submit(T::Type{<:Union{CDSERA5,CDSERA5Land}}, body::Dict)
+# Retries a transient connection failure a few times, same convention as
+# `_maybe_download` -- observed live: a `HTTP.ConnectError`/timeout on the
+# first attempt that then succeeds on retry.
+function _cds_submit(T::Type{<:Union{CDSERA5,CDSERA5Land}}, body::Dict; max_attempts = 3)
     creds = _cds_credentials()
-    r = HTTP.request("POST", "$(_cds_api_base(creds))/processes/$(_cds_dataset_id(T))/execution",
-        ["PRIVATE-TOKEN" => creds.key, "Content-Type" => "application/json"], JSON.json(body))
-    JSON.parse(String(r.body))["jobID"]
+    url = "$(_cds_api_base(creds))/processes/$(_cds_dataset_id(T))/execution"
+    for attempt in 1:max_attempts
+        try
+            r = HTTP.request("POST", url,
+                ["PRIVATE-TOKEN" => creds.key, "Content-Type" => "application/json"], JSON.json(body))
+            return JSON.parse(String(r.body))["jobID"]
+        catch e
+            attempt == max_attempts && rethrow(e)
+            @warn "Transient error submitting CDS job, retrying" exception = e
+            sleep(2.0 * attempt)
+        end
+    end
 end
 
 # Capped exponential backoff, mirroring `_maybe_download`'s retry style.
@@ -218,16 +230,18 @@ function _cds_poll(job_id::AbstractString; sleep_seconds = 2.0, max_sleep = 60.0
     error("CDS job $job_id did not complete after $max_attempts polling attempts")
 end
 
-# Exact key path to the download link is unverified against a live
-# response. Tries the OGC API - Processes `asset`/`value`/`href` shape from
-# the CDS openapi.json, then the `location` field the `ecmwf-datastores-client`
+# Deliberately untyped: `JSON.parse` in the installed JSON.jl version
+# returns a `JSON.Object`, not a `Base.Dict` -- confirmed live (a `body::Dict`
+# signature here raised a `MethodError`). Anything with `haskey`/`getindex`
+# works. Tries the OGC API - Processes `asset`/`value`/`href` shape from the
+# CDS openapi.json, then the `location` field the `ecmwf-datastores-client`
 # Python `Results` object exposes; errors with the actual top-level keys if
 # neither matches, rather than a bare `KeyError`.
-function _cds_result_href(body::Dict)
+function _cds_result_href(body)
     haskey(body, "location") && return body["location"]
     if haskey(body, "asset")
         asset = body["asset"]
-        return asset isa Dict && haskey(asset, "value") ? asset["value"]["href"] : asset["href"]
+        return haskey(asset, "value") ? asset["value"]["href"] : asset["href"]
     end
     error("Could not find a download link in the CDS job results. Response keys: $(collect(keys(body)))")
 end
