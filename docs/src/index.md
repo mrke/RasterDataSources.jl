@@ -123,6 +123,11 @@ CPCSoil
 
 ```@docs
 SoilGrids
+
+## BARRA
+
+```@docs
+BARRA
 ```
 
 # Datasets
