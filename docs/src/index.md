@@ -51,6 +51,13 @@ EarthEnv
 ERA5
 ```
 
+## CDSERA5 / CDSERA5Land
+
+```@docs
+CDSERA5
+CDSERA5Land
+```
+
 ## WorldClim
 
 ```@docs

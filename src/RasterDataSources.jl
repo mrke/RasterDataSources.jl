@@ -15,7 +15,7 @@ using Dates,
 
 import JSON
 
-export WorldClim, CHELSA, EarthEnv, AWAP, ALWB, SRTM, CopernicusDEM, MODIS, ERA5, NCEP, TerraClimate, GRIDMET, SLGA, CRUCL2, CPCSoil, GADS, SILO, BARRA, SoilGrids, ACCESSS
+export WorldClim, CHELSA, EarthEnv, AWAP, ALWB, SRTM, CopernicusDEM, MODIS, ERA5, NCEP, TerraClimate, GRIDMET, SLGA, CRUCL2, CPCSoil, GADS, SILO, BARRA, SoilGrids, ACCESSS, CDSERA5, CDSERA5Land
 
 export BARRAR2, BARRAC2, AUS11, AUST11, AUST04
 
@@ -93,6 +93,8 @@ include("silo/silo.jl")
 include("barra/barra.jl")
 
 include("access_s/access_s.jl")
+
+include("cds_era5/cds_era5.jl")
 
 include("slga/slga.jl")
 include("slga/coarsefragments.jl")
