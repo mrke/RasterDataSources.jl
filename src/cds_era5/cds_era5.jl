@@ -70,14 +70,11 @@ getraster(CDSERA5, ("2m_temperature", "total_precipitation");
     date=(Date(2020,1,1), Date(2020,12,31)), extent=Extent(X=(143.0,149.0), Y=(-44.0,-40.0)))
 ```
 
-!!! warning
-    Two details of the request/response shape are unverified against a live
-    CDS response: the exact JSON key path to the download link in a job's
-    `/results`, and whether `area` is accepted as a 4-element numeric array
-    in the current API (vs. the legacy `"N/W/S/E"` string). Both are
-    isolated in `RasterDataSources._cds_result_href` and
-    `RasterDataSources._cds_area` respectively, for a one-line fix if a real
-    request disagrees.
+!!! note
+    Verified end-to-end (submit, download, `Rasters.jl` load) for
+    single-variable monthly requests, both datasets. Multi-variable bundling
+    into one NetCDF file is unverified; `_check_netcdf` rejects a non-NetCDF
+    download rather than caching it silently.
 """ CDSERA5
 struct CDSERA5 <: RasterDataSource end
 
@@ -148,9 +145,8 @@ _cds_api_base(creds) = "$(creds.url)/retrieve/v1"
 _cds_dataset_id(::Type{CDSERA5}) = "reanalysis-era5-single-levels"
 _cds_dataset_id(::Type{CDSERA5Land}) = "reanalysis-era5-land"
 
-# mcera5's CDS requests set this for ERA5 single-levels; ERA5-Land has only
-# one product internally and doesn't take the field. Unverified whether the
-# current API rejects it outright vs. just ignoring it for ERA5-Land.
+# mcera5 sets this for ERA5 single-levels; ERA5-Land has only one product
+# and omits it (confirmed live -- omitting it works).
 _cds_extra_inputs(::Type{CDSERA5}) = Dict{String,Any}("product_type" => "reanalysis")
 _cds_extra_inputs(::Type{CDSERA5Land}) = Dict{String,Any}()
 
@@ -248,7 +244,7 @@ end
 
 # NetCDF classic starts with magic bytes "CDF"; NetCDF4 is HDF5-based,
 # starting with "\x89HDF". Whether CDS returns one file or a ZIP for a
-# multi-variable request is unverified (see the CDSERA5 docstring warning) --
+# multi-variable request is unverified (see the CDSERA5 docstring note) --
 # check before caching the download at a `.nc` path.
 function _check_netcdf(path)
     magic = open(io -> read(io, 8), path)
