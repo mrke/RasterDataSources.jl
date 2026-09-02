@@ -9,12 +9,10 @@
     CDSERA5 <: RasterDataSource
 
 Data from ERA5 (the reanalysis behind the [`ERA5`](@ref) Zarr source in this
-package), accessed instead via the Copernicus Climate Data Store (CDS) API --
-the same route used by the R package
-[mcera5](https://github.com/dklinges9/mcera5) to drive NicheMapR microclimate
-runs. Unlike [`ERA5`](@ref), this downloads a regional NetCDF subset (one
-month at a time, all requested variables in one file) rather than lazily
-streaming from a global Zarr store, which is the right tool for extracting a
+package), accessed instead via the Copernicus Climate Data Store (CDS) API.
+Unlike [`ERA5`](@ref), this downloads a regional NetCDF subset (one month at
+a time, all requested variables in one file) rather than lazily streaming
+from a global Zarr store, which is the right tool for extracting a
 multi-year hourly time series over a small area (e.g. a state or a point
 buffer) rather than browsing the whole 1940-present global archive.
 
@@ -105,7 +103,7 @@ const CDS_API_URL = "https://cds.climate.copernicus.eu/api"
 
 Read CDS API credentials from `ENV["CDSAPI_URL"]`/`ENV["CDSAPI_KEY"]`, falling
 back to a `~/.cdsapirc` file (the format used by the Python `cdsapi`/`ecmwfr`
-clients, so an existing mcera5/cdsapi setup needs no extra configuration):
+clients, so an existing CDS setup needs no extra configuration):
 ```
 url: https://cds.climate.copernicus.eu/api
 key: <PERSONAL-ACCESS-TOKEN>
@@ -145,12 +143,12 @@ _cds_api_base(creds) = "$(creds.url)/retrieve/v1"
 _cds_dataset_id(::Type{CDSERA5}) = "reanalysis-era5-single-levels"
 _cds_dataset_id(::Type{CDSERA5Land}) = "reanalysis-era5-land"
 
-# mcera5 sets this for ERA5 single-levels; ERA5-Land has only one product
+# ERA5 single-levels requires product_type; ERA5-Land has only one product
 # and omits it (confirmed live -- omitting it works).
 _cds_extra_inputs(::Type{CDSERA5}) = Dict{String,Any}("product_type" => "reanalysis")
 _cds_extra_inputs(::Type{CDSERA5Land}) = Dict{String,Any}()
 
-# N/W/S/E, matching mcera5's `build_era5_request.R` area convention.
+# N/W/S/E.
 function _cds_area(extent::Extents.Extent)
     xmin, xmax = extent.X
     ymin, ymax = extent.Y
