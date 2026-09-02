@@ -1,0 +1,31 @@
+module RasterDataSourcesZarrExt
+
+import Zarr
+import HTTP
+import RasterDataSources
+using RasterDataSources: CDSZarrSource
+
+# Mirrors Zarr.jl's own `HTTPStore` status-code discipline: only 404 means
+# "missing key"; anything else (401/403/429/5xx) throws, naming the URL and
+# status but never the Authorization header.
+struct AuthedHTTPStore <: Zarr.AbstractStore
+    url::String
+    headers::Vector{Pair{String,String}}
+    allowed_codes::Set{Int}
+    AuthedHTTPStore(url, headers, allowed_codes = Set((404,))) = new(url, headers, allowed_codes)
+end
+function Base.getindex(s::AuthedHTTPStore, k::AbstractString)
+    r = HTTP.request("GET", string(s.url, "/", k), s.headers; status_exception = false)
+    r.status < 300 && return r.body
+    r.status in s.allowed_codes && return nothing
+    error("CDS ARCO store request failed: $(r.status) for $(s.url)/$(k)")
+end
+
+RasterDataSources.open_zarr_store(source::CDSZarrSource) = Zarr.zopen(
+    Zarr.CachingStore(
+        AuthedHTTPStore(source.url, ["Authorization" => "Bearer $(RasterDataSources._cds_credentials().key)"]),
+        Zarr.DirectoryStore(source.cache),
+    )
+)
+
+end

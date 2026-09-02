@@ -58,6 +58,13 @@ CDSERA5
 CDSERA5Land
 ```
 
+## ECMWFERA5 / ECMWFERA5Land
+
+```@docs
+ECMWFERA5
+ECMWFERA5Land
+```
+
 ## WorldClim
 
 ```@docs
