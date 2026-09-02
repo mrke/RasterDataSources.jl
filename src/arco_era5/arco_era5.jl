@@ -116,6 +116,10 @@ _arco_dataset_path(::Type{ECMWFERA5Land}) = "reanalysis_era5_land"
 layers(T::Type{<:Union{ECMWFERA5,ECMWFERA5Land}}) = keys(_arco_groups(T))
 getraster_keywords(::Type{<:Union{ECMWFERA5,ECMWFERA5Land}}) = (:chunking,)
 
+# Per-variable short-name -> CDS long-name, not the group lookup above.
+# Reuses ERA5's table -- same CDS variable names.
+layername(::Type{<:Union{ECMWFERA5,ECMWFERA5Land}}, layer::Symbol) = ERA5_LAYERS[layer]
+
 function _arco_group_url(T::Type{<:Union{ECMWFERA5,ECMWFERA5Land}}, layer::Symbol; chunking::Symbol=:geo)
     chunking in (:geo, :time) || throw(ArgumentError("chunking must be :geo or :time, got $chunking"))
     group = _arco_groups(T)[layer]
