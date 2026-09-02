@@ -21,6 +21,8 @@ function Base.getindex(s::AuthedHTTPStore, k::AbstractString)
     error("CDS ARCO store request failed: $(r.status) for $(s.url)/$(k)")
 end
 
+_cds_auth_headers() = ["Authorization" => "Bearer $(RasterDataSources._cds_credentials().key)"]
+
 # `CachingStore`'s docstring says `zopen` auto-wraps it in `ConsolidatedStore`
 # -- true only for its string-based convenience constructor. Passing an
 # already-built store (as here) skips that, silently returning a group with
@@ -28,11 +30,17 @@ end
 RasterDataSources.open_zarr_store(source::CDSZarrSource) = Zarr.zopen(
     Zarr.ConsolidatedStore(
         Zarr.CachingStore(
-            AuthedHTTPStore(source.url, ["Authorization" => "Bearer $(RasterDataSources._cds_credentials().key)"]),
+            AuthedHTTPStore(source.url, _cds_auth_headers()),
             Zarr.DirectoryStore(source.cache),
         ),
         "",
     )
 )
+
+# One array node by sub-path -- no group discovery/ConsolidatedStore/CachingStore
+# needed (self-describing via its own .zarray), so unlike open_zarr_store this
+# doesn't require Zarr >= 0.10.
+RasterDataSources.open_zarr_array(source::CDSZarrSource, subpath::AbstractString) =
+    Zarr.zopen(AuthedHTTPStore("$(source.url)/$subpath", _cds_auth_headers()))
 
 end
