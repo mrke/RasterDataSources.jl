@@ -7,16 +7,14 @@ const SOILGRIDS_LAYERS = (
     clay     = "Clay content (g/100g)",
     nitrogen = "Total nitrogen (cg/kg)",
     ocd      = "Organic carbon density (hg/m³)",
-    ocs      = "Organic carbon stocks (t/ha)",
     phh2o    = "Soil pH in water (pH×10)",
     sand     = "Sand content (g/100g)",
     silt     = "Silt content (g/100g)",
     soc      = "Soil organic carbon (dg/kg)",
 )
 
-const SOILGRIDS_DEPTHS     = ("0-5cm", "5-15cm", "15-30cm", "30-60cm", "60-100cm", "100-200cm")
-const SOILGRIDS_OCS_DEPTHS = ("0-30cm",)
-const SOILGRIDS_QUANTILES  = ("Q0.05", "mean", "Q0.5", "Q0.95", "uncertainty")
+const SOILGRIDS_DEPTHS    = ("0-5cm", "5-15cm", "15-30cm", "30-60cm", "60-100cm", "100-200cm")
+const SOILGRIDS_QUANTILES = ("Q0.05", "mean", "Q0.5", "Q0.95", "uncertainty")
 
 function _soilgrids_layer_table()
     header = """
@@ -34,11 +32,15 @@ end
     SoilGrids <: RasterDataSource
 
 Global gridded soil property data at 250 m resolution from ISRIC World Soil Information,
-on an Interrupted Goode Homolosine grid. Tiles intersecting `extent` are downloaded as
-GeoTIFFs and cached locally; `getraster` returns a `Vector` of their paths. Combine them
-into a single raster with `Rasters.mosaic`.
+on an Interrupted Goode Homolosine grid. Tiles sampled as intersecting `extent` are
+downloaded as GeoTIFFs and cached locally; `getraster` returns a `Vector` of their
+paths. Combine them into a single raster with `Rasters.mosaic`.
 
 Requires `Proj` to be loaded (`import Proj`) to work out which tiles intersect `extent`.
+Tile selection samples `extent` on a grid (`_SOILGRIDS_SAMPLE_STEP` degrees, capped at
+`_SOILGRIDS_MAX_SAMPLES_PER_AXIS` per axis) rather than computing an exact boundary
+intersection, so a tile touching only a sliver of `extent` between sample points can be
+missed; pad `extent` if you need guaranteed edge coverage.
 
 ## Available layers
 
@@ -51,8 +53,6 @@ Use `extent`, `depth` and `quantile` keywords with `getraster`:
 - `extent`: an `Extents.Extent` in lon/lat degrees, required. SoilGrids is a global
   250 m dataset, so a whole-layer download is not supported.
 - `depth`: $(join(SOILGRIDS_DEPTHS, ", "))
-  - `:ocs` only supports $(join(SOILGRIDS_OCS_DEPTHS, ", "))
-
 - `quantile`: $(join(SOILGRIDS_QUANTILES, ", "))
 
 # Examples
@@ -74,16 +74,10 @@ clay = mosaic(first, Raster.(tiles))
 struct SoilGrids <: RasterDataSource end
 
 layers(::Type{SoilGrids}) = keys(SOILGRIDS_LAYERS)
-
-depths(::Type{SoilGrids})               = SOILGRIDS_DEPTHS
-depths(::Type{SoilGrids}, ::Val{:ocs})  = SOILGRIDS_OCS_DEPTHS
-depths(::Type{SoilGrids}, ::Val)        = SOILGRIDS_DEPTHS  # other layers
-depths(T::Type{SoilGrids}, layer::Symbol) = depths(T, Val(layer))
-
+depths(::Type{SoilGrids}) = SOILGRIDS_DEPTHS
+depths(::Type{SoilGrids}, ::Symbol) = SOILGRIDS_DEPTHS
+_defdepth(::Type{SoilGrids}) = "0-5cm"
 getraster_keywords(::Type{SoilGrids}) = (:extent, :depth, :quantile)
-
-_defdepth(::Type{SoilGrids}, ::Val)        = "0-5cm"
-_defdepth(::Type{SoilGrids}, ::Val{:ocs})  = "0-30cm"
 
 rasterpath(::Type{SoilGrids}) = joinpath(rasterpath(), "SoilGrids")
 
@@ -117,13 +111,13 @@ latlon_to_projected(args...) =
 
 _index_vrt_name(layer::Symbol, depth::AbstractString, quantile::AbstractString) =
     "$(layer)_$(depth)_$(quantile).vrt"
-_index_vrt_path(T::Type{SoilGrids}, layer::Symbol, depth::AbstractString, quantile::AbstractString) =
-    joinpath(rasterpath(T), string(layer), "index", _index_vrt_name(layer, depth, quantile))
+_index_vrt_path(layer::Symbol, depth::AbstractString, quantile::AbstractString) =
+    joinpath(rasterpath(SoilGrids), string(layer), "index", _index_vrt_name(layer, depth, quantile))
 _index_vrt_url(layer::Symbol, depth::AbstractString, quantile::AbstractString) =
     joinpath(SOILGRIDS_URI, string(layer), _index_vrt_name(layer, depth, quantile))
 
-function _soilgrids_index(T::Type{SoilGrids}, layer::Symbol, depth::AbstractString, quantile::AbstractString)
-    path = _index_vrt_path(T, layer, depth, quantile)
+function _soilgrids_index(layer::Symbol, depth::AbstractString, quantile::AbstractString)
+    path = _index_vrt_path(layer, depth, quantile)
     url  = _index_vrt_url(layer, depth, quantile)
     _maybe_download(url, path)
     _parse_soilgrids_vrt(path)
@@ -154,9 +148,8 @@ function _sample_range(lo::Real, hi::Real)
     range(lo, hi; length=n)
 end
 
-# Point-sample `extent` (not a reprojected bounding box: IGH is interrupted, so a
-# rectangular lon/lat extent can map to several disjoint regions) and hit-test each
-# sample's pixel coordinate against tile `DstRect`s.
+# Point-sample `extent` (not a bounding box: IGH is interrupted, so a lon/lat rectangle
+# can map to several disjoint projected regions) and hit-test against tile `DstRect`s.
 function _select_tiles(index, extent::Extents.Extent)
     xs, ys = extent.X, extent.Y
     _check_order(xs)
@@ -187,59 +180,47 @@ function _select_tiles(index, extent::Extents.Extent)
     return candidates[sort(collect(hits))]
 end
 
-_tile_path(T::Type{SoilGrids}, layer::Symbol, tile) =
-    joinpath(rasterpath(T), string(layer), split(tile.relpath, '/')...)
+_tile_path(layer::Symbol, tile) =
+    joinpath(rasterpath(SoilGrids), string(layer), split(tile.relpath, '/')...)
 _tile_url(layer::Symbol, tile) = joinpath(SOILGRIDS_URI, string(layer), tile.relpath)
 
-function _resolve_tiles(T::Type{SoilGrids}, layer::Symbol, extent, depth::AbstractString, quantile::AbstractString)
-    _check_layer(T, layer)
-    _check_depth(T, layer, depth)
-    _check_quantile(quantile)
-    extent isa Extents.Extent || throw(ArgumentError(
-        "`extent` keyword must be specified as an `Extents.Extent`, e.g. " *
-        "extent=Extent(X=(10, 12), Y=(41, 43)). SoilGrids is a global 250 m dataset " *
-        "so a whole-layer download is not supported."
-    ))
-    index = _soilgrids_index(T, layer, depth, quantile)
+# Registers with the shared `_resolve_tiles(T, selection; kw...)` protocol in
+# shared.jl (default: `bounds_to_tile_indices` on a regular grid).
+function _resolve_tiles(::Type{SoilGrids}, extent::Extents.Extent; layer, depth, quantile)
+    index = _soilgrids_index(layer, depth, quantile)
     _select_tiles(index, extent)
 end
 
-# Public API — single layer
-function getraster(T::Type{SoilGrids}, layer::Symbol;
-        extent=nothing, depth=_defdepth(T, Val(layer)), quantile="mean")
-    _getraster(T, layer, extent, depth, quantile)
-end
+const _SOILGRIDS_EXTENT_ERROR = "`extent` keyword must be specified as an `Extents.Extent`, e.g. " *
+    "extent=Extent(X=(10, 12), Y=(41, 43)). SoilGrids is a global 250 m dataset " *
+    "so a whole-layer download is not supported."
 
-# Public API — multiple layers as Tuple
-function getraster(T::Type{SoilGrids}, ls::Tuple;
-        extent=nothing, depth=_defdepth(T, Val(:clay)), quantile="mean")
-    _getraster(T, ls, extent, depth, quantile)
-end
+# Per-tile primitives, applied to resolved tiles below.
+_getraster(::Type{SoilGrids}, layer::Symbol, tile) =
+    _maybe_download(_tile_url(layer, tile), _tile_path(layer, tile))
+_rastername(::Type{SoilGrids}, ::Symbol, tile) = basename(tile.relpath)
+_rasterpath(::Type{SoilGrids}, layer::Symbol, tile) = _tile_path(layer, tile)
+_rasterurl(::Type{SoilGrids}, layer::Symbol, tile) = _tile_url(layer, tile)
 
-# Array of depths → Vector (mirrors CHELSA{Climate} month-array pattern)
-function _getraster(T::Type{SoilGrids}, layer_or_layers, extent, depth::AbstractArray, quantile)
-    _getraster.(T, Ref(layer_or_layers), Ref(extent), depth, Ref(quantile))
-end
-
-# Tuple of layers, single depth → NamedTuple
-function _getraster(T::Type{SoilGrids}, ls::Tuple, extent, depth::AbstractString, quantile)
-    _map_layers(T, ls, extent, depth, quantile)
-end
-
-# Single layer, single depth → Vector{String} of downloaded tile paths
-function _getraster(T::Type{SoilGrids}, layer::Symbol, extent, depth::AbstractString, quantile)
-    tiles = _resolve_tiles(T, layer, extent, depth, quantile)
-    map(tiles) do t
-        _maybe_download(_tile_url(layer, t), _tile_path(T, layer, t))
+for op in (:getraster, :rastername, :rasterpath, :rasterurl)
+    _op = Symbol('_', op)
+    @eval function $op(T::Type{SoilGrids}, layer::Symbol; extent=nothing, depth=_defdepth(T), quantile="mean")
+        _check_layer(T, layer)
+        # Array of depths → Vector; a runtime check since keyword args can't dispatch.
+        depth isa AbstractArray && return [$op(T, layer; extent, depth=d, quantile) for d in depth]
+        _check_depth(T, layer, depth)
+        _check_quantile(quantile)
+        _dispatch_tiles($(QuoteNode(op)), tile -> $_op(T, layer, tile), Returns(true),
+            joinpath(rasterpath(T), string(layer), "$(layer)_$(depth)_$(quantile)"), T, extent;
+            missing_selection_error=_SOILGRIDS_EXTENT_ERROR, layer, depth, quantile)
     end
 end
 
-rastername(T::Type{SoilGrids}, layer::Symbol; extent=nothing, depth=_defdepth(T, Val(layer)), quantile="mean") =
-    [basename(t.relpath) for t in _resolve_tiles(T, layer, extent, depth, quantile)]
+# Positional forwarder so the shared `_map_layers` helper can call back into `getraster`.
+_getraster(T::Type{SoilGrids}, layer::Symbol, extent, depth::AbstractString, quantile) =
+    getraster(T, layer; extent, depth, quantile)
 
-rasterpath(T::Type{SoilGrids}, layer::Symbol; extent=nothing, depth=_defdepth(T, Val(layer)), quantile="mean") =
-    [_tile_path(T, layer, t) for t in _resolve_tiles(T, layer, extent, depth, quantile)]
-
-rasterurl(::Type{SoilGrids}) = SOILGRIDS_URI
-rasterurl(T::Type{SoilGrids}, layer::Symbol; extent=nothing, depth=_defdepth(T, Val(layer)), quantile="mean") =
-    [_tile_url(layer, t) for t in _resolve_tiles(T, layer, extent, depth, quantile)]
+function getraster(T::Type{SoilGrids}, ls::Tuple; extent=nothing, depth=_defdepth(T), quantile="mean")
+    depth isa AbstractArray && return [getraster(T, ls; extent, depth=d, quantile) for d in depth]
+    _map_layers(T, ls, extent, depth, quantile)
+end

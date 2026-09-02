@@ -7,13 +7,12 @@ using RasterDataSources: rastername, rasterpath, rasterurl, layers
 
     # Layers
     @test :clay in layers(SoilGrids)
-    @test :ocs in layers(SoilGrids)
-    @test length(layers(SoilGrids)) == 11
+    @test !(:ocs in layers(SoilGrids))
+    @test length(layers(SoilGrids)) == 10
 
     # Depths
     @test depths(SoilGrids) == ("0-5cm", "5-15cm", "15-30cm", "30-60cm", "60-100cm", "100-200cm")
     @test depths(SoilGrids, :clay) == ("0-5cm", "5-15cm", "15-30cm", "30-60cm", "60-100cm", "100-200cm")
-    @test depths(SoilGrids, :ocs) == ("0-30cm",)
 
     @test rasterpath(SoilGrids) == soilgrids_path
     @test RasterDataSources.getraster_keywords(SoilGrids) == (:extent, :depth, :quantile)
@@ -22,9 +21,17 @@ using RasterDataSources: rastername, rasterpath, rasterurl, layers
     @test_throws ArgumentError getraster(SoilGrids, :clay; depth="0-30cm", quantile="mean")
     @test_throws ArgumentError getraster(SoilGrids, :clay; depth="0-5cm", quantile="Q0.99")
     @test_throws ArgumentError getraster(SoilGrids, :not_a_layer; depth="0-5cm", quantile="mean")
+    @test_throws ArgumentError getraster(SoilGrids, :ocs; depth="0-5cm", quantile="mean")
 
-    # `extent` is required — SoilGrids is a global 250 m dataset.
+    # `extent` is required for `getraster`; the introspection ops fall back to
+    # the cache directory for that layer/depth/quantile, matching SRTM/CopernicusDEM.
     @test_throws ArgumentError getraster(SoilGrids, :clay; depth="0-5cm", quantile="mean")
+    @test rasterpath(SoilGrids, :clay; depth="0-5cm", quantile="mean") ==
+        joinpath(soilgrids_path, "clay", "clay_0-5cm_mean")
+
+    # An invalid quantile still throws without `extent` (validated before the
+    # no-selector fallback, not left to the tile-resolution step).
+    @test_throws ArgumentError rasterpath(SoilGrids, :clay; depth="0-5cm", quantile="invalid")
 
     # A small extent that resolves to a single real tile.
     extent = Extent(X=(144.9, 145.1), Y=(-37.9, -37.7))
@@ -59,9 +66,4 @@ using RasterDataSources: rastername, rasterpath, rasterurl, layers
     @test result isa AbstractVector
     @test length(result) == 2
     @test all(paths -> all(isfile, paths), result)
-
-    # ocs uses its own default depth
-    ocs_paths = getraster(SoilGrids, :ocs; extent, quantile="mean")
-    @test only(ocs_paths) |> isfile
-    @test endswith(only(ocs_paths), tile_name)
 end
