@@ -11,7 +11,8 @@ using Dates,
       URIs,
       ZipFile,
       ASCIIrasters,
-      DelimitedFiles
+      DelimitedFiles,
+      CRC32c
 
 import JSON
 
@@ -71,7 +72,10 @@ include("awap/awap.jl")
 
 include("alwb/alwb.jl")
 
+include("era5/shared.jl")
 include("era5/era5.jl")
+include("era5/cds.jl")
+include("era5/ecmwf.jl")
 
 include("terraclimate/terraclimate.jl")
 
@@ -91,10 +95,6 @@ include("gridmet/gridmet.jl")
 include("silo/silo.jl")
 
 include("barra/barra.jl")
-
-include("cds_era5/cds_era5.jl")
-
-include("arco_era5/arco_era5.jl")
 
 include("slga/slga.jl")
 include("slga/coarsefragments.jl")

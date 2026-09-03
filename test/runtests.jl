@@ -7,18 +7,18 @@ using SafeTestsets, Aqua, RasterDataSources, Pkg, Dates, Test
     Aqua.test_stale_deps(RasterDataSources)
     Aqua.test_undefined_exports(RasterDataSources)
     Aqua.test_project_extras(RasterDataSources)
-    Aqua.test_deps_compat(RasterDataSources; ignore=[:Dates, :DelimitedFiles])
+    Aqua.test_deps_compat(RasterDataSources; ignore=[:Dates, :DelimitedFiles, :CRC32c])
 end
 
 # ALWB and AWAP download URLs return 403 Forbidden — BOM's Akamai layer
 # blocks them. Re-enable when the endpoints work again.
 @time @safetestset "era5" begin include("era5.jl") end
+@time @safetestset "era5 cds" begin include("era5-cds.jl") end
+@time @safetestset "era5 arco" begin include("era5-arco.jl") end
 @time @safetestset "terraclimate" begin include("terraclimate.jl") end
 @time @safetestset "gridmet" begin include("gridmet.jl") end
 @time @safetestset "silo" begin include("silo.jl") end
 @time @safetestset "barra" begin include("barra.jl") end
-@time @safetestset "cds_era5" begin include("cds_era5.jl") end
-@time @safetestset "arco_era5" begin include("arco_era5.jl") end
 @time @safetestset "chelsa bioclim" begin include("chelsa-bioclim.jl") end
 @time @safetestset "chelsa climate" begin include("chelsa-climate.jl") end
 @time @safetestset "chelsa future" begin include("chelsa-future.jl") end
