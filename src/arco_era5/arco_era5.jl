@@ -157,14 +157,3 @@ the same signature during precompilation); without `Zarr` loaded, calling
 this raises a `MethodError` rather than an `UndefVarError`.
 """
 function open_zarr_store end
-
-"""
-    open_zarr_array(source::CDSZarrSource, subpath::AbstractString)
-
-Open one array node directly by its sub-path within an
-[`ECMWFERA5`](@ref)/[`ECMWFERA5Land`](@ref) group (e.g. `"time"`,
-`"latitude"`, or a variable's CDS long name), authenticated the same way as
-[`open_zarr_store`](@ref) but without opening/caching the whole group.
-Requires `using Zarr` loaded first -- see `open_zarr_store` for why.
-"""
-function open_zarr_array end

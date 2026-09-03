@@ -37,10 +37,4 @@ RasterDataSources.open_zarr_store(source::CDSZarrSource) = Zarr.zopen(
     )
 )
 
-# One array node by sub-path -- no group discovery/ConsolidatedStore/CachingStore
-# needed (self-describing via its own .zarray), so unlike open_zarr_store this
-# doesn't require Zarr >= 0.10.
-RasterDataSources.open_zarr_array(source::CDSZarrSource, subpath::AbstractString) =
-    Zarr.zopen(AuthedHTTPStore("$(source.url)/$subpath", _cds_auth_headers()))
-
 end
