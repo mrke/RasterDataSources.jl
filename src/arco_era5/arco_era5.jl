@@ -116,9 +116,9 @@ _arco_dataset_path(::Type{ECMWFERA5Land}) = "reanalysis_era5_land"
 layers(T::Type{<:Union{ECMWFERA5,ECMWFERA5Land}}) = keys(_arco_groups(T))
 getraster_keywords(::Type{<:Union{ECMWFERA5,ECMWFERA5Land}}) = (:chunking,)
 
-# Per-variable short-name -> CDS long-name, not the group lookup above.
-# Reuses ERA5's table -- same CDS variable names.
-layername(::Type{<:Union{ECMWFERA5,ECMWFERA5Land}}, layer::Symbol) = ERA5_LAYERS[layer]
+# Unlike GCP ARCO-ERA5, ECMWF's own store names arrays with the short CDS
+# symbol directly (`t2m`, not `2m_temperature`) -- confirmed live.
+layername(::Type{<:Union{ECMWFERA5,ECMWFERA5Land}}, layer::Symbol) = string(layer)
 
 function _arco_group_url(T::Type{<:Union{ECMWFERA5,ECMWFERA5Land}}, layer::Symbol; chunking::Symbol=:geo)
     chunking in (:geo, :time) || throw(ArgumentError("chunking must be :geo or :time, got $chunking"))
