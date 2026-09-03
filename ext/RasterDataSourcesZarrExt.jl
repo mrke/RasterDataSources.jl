@@ -8,6 +8,18 @@ using RasterDataSources: CDSZarrSource
 # Mirrors Zarr.jl's own `HTTPStore` status-code discipline: only 404 means
 # "missing key"; anything else (401/403/429/5xx) throws, naming the URL and
 # status but never the Authorization header.
+# Error bodies/headers from a throttled or failing service usually explain
+# themselves (rate limit, quota, retry-after) -- surface that instead of
+# just the status code.
+function _response_detail(r)
+    parts = String[]
+    retry_after = HTTP.header(r, "Retry-After", "")
+    isempty(retry_after) || push!(parts, "Retry-After: $retry_after")
+    body = strip(String(r.body))
+    isempty(body) || push!(parts, first(body, 300))
+    return join(parts, "; ")
+end
+
 struct AuthedHTTPStore <: Zarr.AbstractStore
     url::String
     headers::Vector{Pair{String,String}}
@@ -26,13 +38,15 @@ function Base.getindex(s::AuthedHTTPStore, k::AbstractString;
         r = HTTP.request("GET", url, s.headers; status_exception = false)
         r.status < 300 && return r.body
         r.status in s.allowed_codes && return nothing
+        detail = _response_detail(r)
         if r.status >= 500 && attempt < max_attempts
-            @warn "Transient error from CDS ARCO store, retrying" status = r.status url
+            @warn "Transient error from CDS ARCO store, retrying" status = r.status url detail
             sleep(sleep_seconds)
             sleep_seconds = min(sleep_seconds * 1.5, max_sleep)
             continue
         end
-        error("CDS ARCO store request failed: $(r.status) for $url")
+        error("CDS ARCO store request failed: $(r.status) for $url" *
+              (isempty(detail) ? "" : " -- $detail"))
     end
 end
 
