@@ -14,11 +14,22 @@ struct AuthedHTTPStore <: Zarr.AbstractStore
     allowed_codes::Set{Int}
     AuthedHTTPStore(url, headers, allowed_codes = Set((404,))) = new(url, headers, allowed_codes)
 end
-function Base.getindex(s::AuthedHTTPStore, k::AbstractString)
-    r = HTTP.request("GET", string(s.url, "/", k), s.headers; status_exception = false)
-    r.status < 300 && return r.body
-    r.status in s.allowed_codes && return nothing
-    error("CDS ARCO store request failed: $(r.status) for $(s.url)/$(k)")
+# Retries 5xx (the ARCO beta service occasionally 503s) with the same
+# backoff as `_cds_submit`; 4xx isn't retried since another attempt won't
+# fix an auth/permission problem.
+function Base.getindex(s::AuthedHTTPStore, k::AbstractString; max_attempts = 3)
+    url = string(s.url, "/", k)
+    for attempt in 1:max_attempts
+        r = HTTP.request("GET", url, s.headers; status_exception = false)
+        r.status < 300 && return r.body
+        r.status in s.allowed_codes && return nothing
+        if r.status >= 500 && attempt < max_attempts
+            @warn "Transient error from CDS ARCO store, retrying" status = r.status url
+            sleep(2.0 * attempt)
+            continue
+        end
+        error("CDS ARCO store request failed: $(r.status) for $url")
+    end
 end
 
 _cds_auth_headers() = ["Authorization" => "Bearer $(RasterDataSources._cds_credentials().key)"]
