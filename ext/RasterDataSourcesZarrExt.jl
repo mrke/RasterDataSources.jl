@@ -14,10 +14,13 @@ struct AuthedHTTPStore <: Zarr.AbstractStore
     allowed_codes::Set{Int}
     AuthedHTTPStore(url, headers, allowed_codes = Set((404,))) = new(url, headers, allowed_codes)
 end
-# Retries 5xx (the ARCO beta service occasionally 503s) with the same
-# backoff as `_cds_submit`; 4xx isn't retried since another attempt won't
-# fix an auth/permission problem.
-function Base.getindex(s::AuthedHTTPStore, k::AbstractString; max_attempts = 3)
+# 5xx here has been observed as CDS-side rate-limiting after a heavy chunk
+# download (confirmed live: an unauthenticated request to the same URL gets
+# a clean 401, so the service itself is up) -- capped exponential backoff,
+# mirroring `_cds_poll`, gives a cooldown window time to clear. 4xx isn't
+# retried since another attempt won't fix an auth/permission problem.
+function Base.getindex(s::AuthedHTTPStore, k::AbstractString;
+        max_attempts = 5, sleep_seconds = 2.0, max_sleep = 30.0)
     url = string(s.url, "/", k)
     for attempt in 1:max_attempts
         r = HTTP.request("GET", url, s.headers; status_exception = false)
@@ -25,7 +28,8 @@ function Base.getindex(s::AuthedHTTPStore, k::AbstractString; max_attempts = 3)
         r.status in s.allowed_codes && return nothing
         if r.status >= 500 && attempt < max_attempts
             @warn "Transient error from CDS ARCO store, retrying" status = r.status url
-            sleep(2.0 * attempt)
+            sleep(sleep_seconds)
+            sleep_seconds = min(sleep_seconds * 1.5, max_sleep)
             continue
         end
         error("CDS ARCO store request failed: $(r.status) for $url")
