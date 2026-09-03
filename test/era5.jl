@@ -17,9 +17,11 @@ using RasterDataSources: rasterpath, layername, layers, CachedCloudSource
     @test layername(ERA5, :tp) == "total_precipitation"
 
     # Test getraster returns a CachedCloudSource
+    rm(era5_path; force=true, recursive=true)
     source = getraster(ERA5)
     @test source isa CachedCloudSource
     @test source.url == "https://storage.googleapis.com/gcp-public-data-arco-era5/ar/full_37-1h-0p25deg-chunk-1.zarr-v3"
     @test source.cache == era5_path
-    @test isdir(source.cache)
+    # getraster only builds a reference; no filesystem side effect.
+    @test !isdir(source.cache)
 end

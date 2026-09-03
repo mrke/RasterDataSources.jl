@@ -1,24 +1,10 @@
 const SILO_URI = URI(scheme="https", host="s3-ap-southeast-2.amazonaws.com", path="/silo-open-data/Official/annual")
 
 const SILO_LAYERS = (
-    daily_rain          = (description="Daily rainfall",                                                          units="mm"),
-    et_morton_actual    = (description="Morton's areal actual evapotranspiration",                                units="mm"),
-    et_morton_potential = (description="Morton's point potential evapotranspiration",                             units="mm"),
-    et_morton_wet       = (description="Morton's wet-environment areal potential evapotranspiration over land",   units="mm"),
-    et_short_crop       = (description="FAO56 short crop",                                                        units="mm"),
-    et_tall_crop        = (description="ASCE tall crop",                                                         units="mm"),
-    evap_morton_lake    = (description="Morton's shallow lake evaporation",                                      units="mm"),
-    evap_pan            = (description="Class A pan evaporation",                                                units="mm"),
-    evap_syn            = (description="Synthetic estimate",                                                     units="mm"),
-    max_temp            = (description="Maximum temperature",                                                    units="°C"),
-    min_temp            = (description="Minimum temperature",                                                    units="°C"),
-    monthly_rain        = (description="Monthly rainfall",                                                       units="mm"),
-    mslp                = (description="Mean sea level pressure",                                                units="hPa"),
-    radiation           = (description="Solar exposure, consisting of both direct and diffuse components",       units="MJ/m^2"),
-    rh_tmax             = (description="Relative humidity at the time of maximum temperature",                   units="%"),
-    rh_tmin             = (description="Relative humidity at the time of minimum temperature",                   units="%"),
-    vp                  = (description="Vapour pressure",                                                        units="hPa"),
-    vp_deficit          = (description="Vapour pressure deficit",                                                units="hPa"),
+    :daily_rain, :et_morton_actual, :et_morton_potential, :et_morton_wet,
+    :et_short_crop, :et_tall_crop, :evap_morton_lake, :evap_pan, :evap_syn,
+    :max_temp, :min_temp, :monthly_rain, :mslp, :radiation,
+    :rh_tmax, :rh_tmin, :vp, :vp_deficit,
 )
 
 # Some variables have shorter coverage than the general 1889-present range.
@@ -43,12 +29,14 @@ Coverage is from 1889 to present for most variables, 1957 for `mslp`, and
     getraster(source::Type{SILO}, [layer]; date)
 
 # Arguments
-- `layer`: `Symbol` or `Tuple` of `Symbol` from `$(keys(SILO_LAYERS))`.
+- `layer`: `Symbol` or `Tuple` of `Symbol` from `$(SILO_LAYERS)`.
     Without a `layer` argument all layers are downloaded and a `NamedTuple` of paths returned.
 
 # Keywords
 - `date`: a `Date`, `AbstractVector` of `Date`, or a `Tuple` of start and end dates.
     Only the year component is used. For multiple dates, a `Vector` of paths is returned.
+- `update`: `Bool`, defaults to `false`. If `true`, re-download files even when a local
+    copy already exists. Useful for the current year, which SILO updates in place.
 
 # Example
 ```julia
@@ -65,13 +53,13 @@ julia> getraster(SILO, :daily_rain; date=(Date(2018), Date(2020)))
 Returns the filepath/s of the downloaded or pre-existing files.
 
 !!! note
-    `getraster` never re-downloads an existing local file, so the current
-    year's data will go stale as SILO updates it. Delete the local file to
-    force a refresh.
+    By default `getraster` will not re-download an existing local file, so the
+    current year's data will go stale as SILO updates it. Pass `update=true`
+    to force a refresh.
 """ SILO
 struct SILO <: RasterDataSource end
 
-layers(::Type{SILO}) = keys(SILO_LAYERS)
+layers(::Type{SILO}) = SILO_LAYERS
 date_step(::Type{SILO}) = Year(1)
 date_range(::Type{SILO}) = (Date(1889, 1, 1), Date(year(today()), 12, 31))
 getraster_keywords(::Type{SILO}) = (:date,)
@@ -85,26 +73,26 @@ rasterpath(T::Type{SILO}, layer::Symbol; date) =
 rasterurl(T::Type{SILO}, layer::Symbol; date) =
     joinpath(SILO_URI, string(layer), rastername(T, layer; date))
 
-function getraster(T::Type{SILO}, layers::Union{Tuple,Symbol}; date)
-    _getraster(T, layers, date)
+function getraster(T::Type{SILO}, layers::Union{Tuple,Symbol}; date, update::Bool=false)
+    _getraster(T, layers, date; update)
 end
 
-function _getraster(T::Type{SILO}, layers, dates::Tuple{<:Any,<:Any})
-    _getraster(T, layers, date_sequence(T, dates))
+function _getraster(T::Type{SILO}, layers, dates::Tuple{<:Any,<:Any}; update::Bool=false)
+    _getraster(T, layers, date_sequence(T, dates); update)
 end
-function _getraster(T::Type{SILO}, layers, dates::AbstractArray)
-    _getraster.(T, Ref(layers), dates)
+function _getraster(T::Type{SILO}, layers, dates::AbstractArray; update::Bool=false)
+    map(d -> _getraster(T, layers, d; update), dates)
 end
-function _getraster(T::Type{SILO}, layers::Tuple, date::Dates.TimeType)
-    _map_layers(T, layers, date)
+function _getraster(T::Type{SILO}, layers::Tuple, date::Dates.TimeType; update::Bool=false)
+    _map_layers(T, layers, date; update)
 end
-function _getraster(T::Type{SILO}, layer::Symbol, date::Dates.TimeType)
+function _getraster(T::Type{SILO}, layer::Symbol, date::Dates.TimeType; update::Bool=false)
     _check_layer(T, layer)
     minyear = _silo_min_year(layer)
     year(date) >= minyear || throw(ArgumentError(
         "SILO layer `$layer` is only available from $minyear, got $(year(date))"
     ))
     path = rasterpath(T, layer; date)
-    url  = rasterurl(T, layer; date)
-    _maybe_download(url, path)
+    url = rasterurl(T, layer; date)
+    _maybe_download(url, path; update)
 end

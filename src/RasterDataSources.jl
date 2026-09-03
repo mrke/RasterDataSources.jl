@@ -11,13 +11,14 @@ using Dates,
       URIs,
       ZipFile,
       ASCIIrasters,
-      DelimitedFiles
+      DelimitedFiles,
+      CRC32c
 
 import JSON
 
-export WorldClim, CHELSA, EarthEnv, AWAP, ALWB, SRTM, CopernicusDEM, MODIS, ERA5, NCEP, TerraClimate, GRIDMET, SLGA, CRUCL2, CPCSoil, GADS, SILO, BARRA, SoilGrids, ACCESSS, CDSERA5, CDSERA5Land, ECMWFERA5, ECMWFERA5Land
+export WorldClim, CHELSA, EarthEnv, AWAP, ALWB, SRTM, CopernicusDEM, MODIS, ERA5, NCEP, TerraClimate, GRIDMET, SLGA, CRUCL2, CPCSoil, GADS, SILO, BARRA, SoilGrids, ACCESSS, ERA5CDS, ERA5CDSLand, ERA5ECMWF, ERA5ECMWFLand
 
-export BARRAR2, BARRAC2, AUS11, AUST11, AUST04
+export BARRAR2, BARRAC2, AUS11, AUST11, AUST04, Static
 
 export BioClim, BioClimPlus, Climate, Weather, Elevation, LandCover, HabitatHeterogeneity, CoarseFragments, Mean
 
@@ -40,7 +41,7 @@ export ECO4ESIPTJPL,ECO4WUE,GEDI03,GEDI04_B,MCD12Q1,MCD12Q2,MCD15A2H,
     MYD17A2H, MYD17A3HGF, MYD21A2, SIF005, SIF_ANN, VNP09A1, VNP09H1, 
     VNP13A1, VNP15A2H, VNP21A2, VNP22Q2
 
-export Pressure, Surface, SurfaceFlux, SixHour
+export PressureLevels, Surface, SurfaceFlux, SixHour
 
 export Values, Deciles
 
@@ -71,7 +72,10 @@ include("awap/awap.jl")
 
 include("alwb/alwb.jl")
 
+include("era5/shared.jl")
 include("era5/era5.jl")
+include("era5/cds.jl")
+include("era5/ecmwf.jl")
 
 include("terraclimate/terraclimate.jl")
 
@@ -93,10 +97,6 @@ include("silo/silo.jl")
 include("barra/barra.jl")
 
 include("access_s/access_s.jl")
-
-include("cds_era5/cds_era5.jl")
-
-include("arco_era5/arco_era5.jl")
 
 include("slga/slga.jl")
 include("slga/coarsefragments.jl")
