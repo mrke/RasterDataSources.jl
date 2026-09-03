@@ -2,16 +2,16 @@ using RasterDataSources, URIs, Extents, Test, Dates, JSON
 using RasterDataSources: rastername, rasterpath, _cds_area, _cds_request_body, _cds_dataset_id,
     _normalize_cds_variables, _extent_tag, _cds_result_href, _validate_cds_extent, _cds_credentials
 
-@testset "CDSERA5 / CDSERA5Land" begin
+@testset "ERA5CDS / ERA5CDSLand" begin
 
     tas_extent = Extent(X=(143.0, 149.0), Y=(-44.0, -40.0))
 
-    @test _cds_dataset_id(CDSERA5) == "reanalysis-era5-single-levels"
-    @test _cds_dataset_id(CDSERA5Land) == "reanalysis-era5-land"
+    @test _cds_dataset_id(ERA5CDS) == "reanalysis-era5-single-levels"
+    @test _cds_dataset_id(ERA5CDSLand) == "reanalysis-era5-land"
 
     @test _cds_area(tas_extent) == [-40.0, 143.0, -44.0, 149.0]
 
-    body = _cds_request_body(CDSERA5Land, ("2m_temperature", "total_precipitation"), Date(2020, 2, 1), tas_extent)
+    body = _cds_request_body(ERA5CDSLand, ("2m_temperature", "total_precipitation"), Date(2020, 2, 1), tas_extent)
     inputs = body["inputs"]
     @test inputs["variable"] == ["2m_temperature", "total_precipitation"]
     @test inputs["year"] == ["2020"]
@@ -24,28 +24,28 @@ using RasterDataSources: rastername, rasterpath, _cds_area, _cds_request_body, _
     @test inputs["data_format"] == "netcdf"
     @test !haskey(inputs, "product_type")
 
-    body2 = _cds_request_body(CDSERA5, ("2m_temperature",), Date(2021, 1, 1), tas_extent)
+    body2 = _cds_request_body(ERA5CDS, ("2m_temperature",), Date(2021, 1, 1), tas_extent)
     @test body2["inputs"]["product_type"] == "reanalysis"
 
-    @test rasterpath(CDSERA5) == joinpath(ENV["RASTERDATASOURCES_PATH"], "CDS-ERA5")
-    @test rasterpath(CDSERA5Land) == joinpath(ENV["RASTERDATASOURCES_PATH"], "CDS-ERA5-Land")
+    @test rasterpath(ERA5CDS) == joinpath(ENV["RASTERDATASOURCES_PATH"], "CDS-ERA5")
+    @test rasterpath(ERA5CDSLand) == joinpath(ENV["RASTERDATASOURCES_PATH"], "CDS-ERA5-Land")
 
-    name1 = rastername(CDSERA5Land, ("2m_temperature",); date=Date(2020, 2, 1), extent=tas_extent)
-    name2 = rastername(CDSERA5Land, ("2m_temperature", "total_precipitation"); date=Date(2020, 2, 1), extent=tas_extent)
+    name1 = rastername(ERA5CDSLand, ("2m_temperature",); date=Date(2020, 2, 1), extent=tas_extent)
+    name2 = rastername(ERA5CDSLand, ("2m_temperature", "total_precipitation"); date=Date(2020, 2, 1), extent=tas_extent)
     @test name1 != name2 # different variable sets must not collide on disk
     @test occursin("202002", name1)
     @test endswith(name1, ".nc")
 
-    @test RasterDataSources.getraster_keywords(CDSERA5Land) == (:date, :extent)
-    @test RasterDataSources.date_step(CDSERA5Land) == Month(1)
+    @test RasterDataSources.getraster_keywords(ERA5CDSLand) == (:date, :extent)
+    @test RasterDataSources.date_step(ERA5CDSLand) == Month(1)
 
-    @test_throws ArgumentError getraster(CDSERA5Land; date=Date(2020, 2, 1), extent=tas_extent)
+    @test_throws ArgumentError getraster(ERA5CDSLand; date=Date(2020, 2, 1), extent=tas_extent)
 
     # Same variables, different input order/type/duplicates -> identical
     # normalized tuple -> identical cache path.
     @test _normalize_cds_variables(("tp", "t2m")) == _normalize_cds_variables(("t2m", "tp"))
-    name3 = rastername(CDSERA5Land, _normalize_cds_variables(("tp", "t2m")); date=Date(2020, 2, 1), extent=tas_extent)
-    name4 = rastername(CDSERA5Land, _normalize_cds_variables(("t2m", "tp")); date=Date(2020, 2, 1), extent=tas_extent)
+    name3 = rastername(ERA5CDSLand, _normalize_cds_variables(("tp", "t2m")); date=Date(2020, 2, 1), extent=tas_extent)
+    name4 = rastername(ERA5CDSLand, _normalize_cds_variables(("t2m", "tp")); date=Date(2020, 2, 1), extent=tas_extent)
     @test name3 == name4
     @test _normalize_cds_variables((:t2m, "t2m", "t2m")) == ("t2m",) # Symbol + dupes collapse to one
     @test_throws ArgumentError _normalize_cds_variables(())
@@ -54,7 +54,7 @@ using RasterDataSources: rastername, rasterpath, _cds_area, _cds_request_body, _
 
     # Reversed bounds must error, not silently build a nonsensical area/path.
     @test_throws ArgumentError _extent_tag(Extent(X=(149.0, 143.0), Y=(-44.0, -40.0)))
-    @test_throws ArgumentError getraster(CDSERA5Land, "2m_temperature";
+    @test_throws ArgumentError getraster(ERA5CDSLand, "2m_temperature";
         date=Date(2020, 2, 1), extent=Extent(X=(149.0, 143.0), Y=(-44.0, -40.0)))
 
     # Out-of-range/non-finite coordinates must error too (an antimeridian

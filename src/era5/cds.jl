@@ -1,24 +1,24 @@
 
-# CDS REST API (OGC API - Processes) client shared by CDSERA5 and
-# CDSERA5Land. Unlike other sources, a request is async: submit -> poll ->
+# CDS REST API (OGC API - Processes) client shared by ERA5CDS and
+# ERA5CDSLand. Unlike other sources, a request is async: submit -> poll ->
 # download a result URL, so there's no static per-file URL for `_maybe_download`.
 
-abstract type AbstractCDSERA5 <: RasterDataSource end
+abstract type AbstractERA5CDS <: RasterDataSource end
 
 @doc """
-    CDSERA5 <: RasterDataSource
+    ERA5CDS <: RasterDataSource
 
 ERA5 reanalysis via the Copernicus Climate Data Store (CDS) API: downloads a
 regional monthly NetCDF subset (~31 km) rather than streaming from a global
 Zarr store like [`ERA5`](@ref). Requests are queued server-side, so
 `getraster` submits a job and polls until done (seconds to tens of minutes).
-See [`CDSERA5Land`](@ref) for the ~9 km land-only dataset.
+See [`ERA5CDSLand`](@ref) for the ~9 km land-only dataset.
 
 Needs a CDS API key -- see `RasterDataSources._cds_credentials`.
 `extent` is WGS84 lon/lat; antimeridian-crossing extents are not supported.
 
 # Usage with `getraster`
-    getraster(T::Type{CDSERA5}, variables; date, extent)
+    getraster(T::Type{ERA5CDS}, variables; date, extent)
 
 # Arguments
 - `variables`: a CDS variable name `String` (e.g. `"2m_temperature"`), or a
@@ -34,29 +34,29 @@ Needs a CDS API key -- see `RasterDataSources._cds_credentials`.
 # Example
 ```julia
 using RasterDataSources, Extents, Dates
-getraster(CDSERA5, ("2m_temperature", "total_precipitation");
+getraster(ERA5CDS, ("2m_temperature", "total_precipitation");
     date=(Date(2020,1,1), Date(2020,12,31)), extent=Extent(X=(143.0,149.0), Y=(-44.0,-40.0)))
 ```
-""" CDSERA5
-struct CDSERA5 <: AbstractCDSERA5 end
+""" ERA5CDS
+struct ERA5CDS <: AbstractERA5CDS end
 
 @doc """
-    CDSERA5Land <: RasterDataSource
+    ERA5CDSLand <: RasterDataSource
 
 ERA5-Land, the land-only, higher-resolution (~9 km) companion to ERA5, via
-the CDS API. See [`CDSERA5`](@ref) for setup and usage.
+the CDS API. See [`ERA5CDS`](@ref) for setup and usage.
 
 # Example
 ```julia
 using RasterDataSources, Extents, Dates
-getraster(CDSERA5Land, "2m_temperature";
+getraster(ERA5CDSLand, "2m_temperature";
     date=Date(2020,7,1), extent=Extent(X=(143.0,149.0), Y=(-44.0,-40.0)))
 ```
-""" CDSERA5Land
-struct CDSERA5Land <: AbstractCDSERA5 end
+""" ERA5CDSLand
+struct ERA5CDSLand <: AbstractERA5CDS end
 
 # `_cds_credentials`/`CDS_API_URL` live in shared.jl -- also used by the
-# ECMWFERA5/ECMWFERA5Land Zarr extension.
+# ERA5ECMWF/ERA5ECMWFLand Zarr extension.
 
 # OGC API - Processes endpoints (processes/jobs) live under `/retrieve/v1`.
 _cds_api_base(creds) = "$(creds.url)/retrieve/v1"
@@ -71,12 +71,12 @@ function _cds_json_request(method, url, creds; body = nothing)
     JSON.parse(String(r.body))
 end
 
-_cds_dataset_id(::Type{CDSERA5}) = "reanalysis-era5-single-levels"
-_cds_dataset_id(::Type{CDSERA5Land}) = "reanalysis-era5-land"
+_cds_dataset_id(::Type{ERA5CDS}) = "reanalysis-era5-single-levels"
+_cds_dataset_id(::Type{ERA5CDSLand}) = "reanalysis-era5-land"
 
 # ERA5-Land has only one product_type and omits it.
-_cds_extra_inputs(::Type{CDSERA5}) = Dict{String,Any}("product_type" => "reanalysis")
-_cds_extra_inputs(::Type{CDSERA5Land}) = Dict{String,Any}()
+_cds_extra_inputs(::Type{ERA5CDS}) = Dict{String,Any}("product_type" => "reanalysis")
+_cds_extra_inputs(::Type{ERA5CDSLand}) = Dict{String,Any}()
 
 # N/W/S/E.
 function _cds_area(extent::Extents.Extent)
@@ -88,7 +88,7 @@ end
 # Builds the `{"inputs": {...}}` body for one calendar month, all hours of
 # all days, for all `variables` in one job.
 function _cds_request_body(
-    T::Type{<:AbstractCDSERA5}, variables::Tuple{Vararg{AbstractString}},
+    T::Type{<:AbstractERA5CDS}, variables::Tuple{Vararg{AbstractString}},
     date::Date, extent::Extents.Extent,
 )
     days = [lpad(d, 2, '0') for d in 1:daysinmonth(date)]
@@ -107,7 +107,7 @@ function _cds_request_body(
     Dict("inputs" => inputs)
 end
 
-function _cds_submit(T::Type{<:AbstractCDSERA5}, creds, body::Dict)
+function _cds_submit(T::Type{<:AbstractERA5CDS}, creds, body::Dict)
     url = "$(_cds_api_base(creds))/processes/$(_cds_dataset_id(T))/execution"
     response = _cds_json_request("POST", url, creds; body)
     get(response, "jobID") do
@@ -229,42 +229,42 @@ function _normalize_cds_variables(variables)
     Tuple(sort(result))
 end
 
-date_step(::Type{<:AbstractCDSERA5}) = Month(1)
-date_range(::Type{CDSERA5}) = (Date(1940, 1, 1), Date(year(today()), 12, 31))
-date_range(::Type{CDSERA5Land}) = (Date(1950, 1, 1), Date(year(today()), 12, 31))
-getraster_keywords(::Type{<:AbstractCDSERA5}) = (:date, :extent)
+date_step(::Type{<:AbstractERA5CDS}) = Month(1)
+date_range(::Type{ERA5CDS}) = (Date(1940, 1, 1), Date(year(today()), 12, 31))
+date_range(::Type{ERA5CDSLand}) = (Date(1950, 1, 1), Date(year(today()), 12, 31))
+getraster_keywords(::Type{<:AbstractERA5CDS}) = (:date, :extent)
 
 # Not the plain "ERA5" folder -- that's the unrelated `ERA5` Zarr cache (era5.jl).
-rasterpath(::Type{CDSERA5}) = joinpath(rasterpath(), "CDS-ERA5")
-rasterpath(::Type{CDSERA5Land}) = joinpath(rasterpath(), "CDS-ERA5-Land")
+rasterpath(::Type{ERA5CDS}) = joinpath(rasterpath(), "CDS-ERA5")
+rasterpath(::Type{ERA5CDSLand}) = joinpath(rasterpath(), "CDS-ERA5-Land")
 
-rastername(::Type{<:AbstractCDSERA5}, variables::Tuple{Vararg{AbstractString}}; date, extent) =
+rastername(::Type{<:AbstractERA5CDS}, variables::Tuple{Vararg{AbstractString}}; date, extent) =
     "$(Dates.format(date, "yyyymm"))_$(length(variables))vars-$(_variables_tag(variables)).nc"
 
 function rasterpath(
-    T::Type{<:AbstractCDSERA5}, variables::Tuple{Vararg{AbstractString}}; date, extent::Extents.Extent,
+    T::Type{<:AbstractERA5CDS}, variables::Tuple{Vararg{AbstractString}}; date, extent::Extents.Extent,
 )
     joinpath(rasterpath(T), _extent_tag(extent), rastername(T, variables; date, extent))
 end
 
 # Overrides the generic layers(T)-based fallback: layers(T) is undefined here
 # (open-ended catalog, see docstrings above).
-getraster(T::Type{<:AbstractCDSERA5}; kw...) = throw(ArgumentError(
+getraster(T::Type{<:AbstractERA5CDS}; kw...) = throw(ArgumentError(
     "variables must be specified, e.g. getraster($T, \"2m_temperature\"; date, extent)"
 ))
-getraster(T::Type{<:AbstractCDSERA5}, variable::Union{AbstractString,Symbol}; date, extent) =
+getraster(T::Type{<:AbstractERA5CDS}, variable::Union{AbstractString,Symbol}; date, extent) =
     _getraster(T, _normalize_cds_variables(variable), date, extent)
-getraster(T::Type{<:AbstractCDSERA5}, variables::Tuple; date, extent) =
+getraster(T::Type{<:AbstractERA5CDS}, variables::Tuple; date, extent) =
     _getraster(T, _normalize_cds_variables(variables), date, extent)
 
-function _getraster(T::Type{<:AbstractCDSERA5}, variables::Tuple, dates::Tuple{<:Any,<:Any}, extent)
+function _getraster(T::Type{<:AbstractERA5CDS}, variables::Tuple, dates::Tuple{<:Any,<:Any}, extent)
     _getraster(T, variables, date_sequence(T, dates), extent)
 end
-function _getraster(T::Type{<:AbstractCDSERA5}, variables::Tuple, dates::AbstractArray, extent)
+function _getraster(T::Type{<:AbstractERA5CDS}, variables::Tuple, dates::AbstractArray, extent)
     _getraster.(T, Ref(variables), dates, Ref(extent))
 end
 function _getraster(
-    T::Type{<:AbstractCDSERA5}, variables::Tuple{Vararg{AbstractString}},
+    T::Type{<:AbstractERA5CDS}, variables::Tuple{Vararg{AbstractString}},
     date::Date, extent::Extents.Extent,
 )
     path = rasterpath(T, variables; date, extent)

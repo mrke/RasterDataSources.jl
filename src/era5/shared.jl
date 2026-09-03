@@ -1,5 +1,5 @@
 # Shared plumbing for the three ERA5 sources: ERA5 (public GCP ARCO Zarr),
-# CDSERA5/CDSERA5Land (CDS job-queue NetCDF), and ECMWFERA5/ECMWFERA5Land
+# ERA5CDS/ERA5CDSLand (CDS job-queue NetCDF), and ERA5ECMWF/ERA5ECMWFLand
 # (CDS-key-gated ECMWF ARCO Zarr).
 
 """
