@@ -64,18 +64,17 @@ end
 function _maybe_download(uri::URI, filepath, headers = []; update::Bool=false)
     if update || !isfile(filepath)
         mkpath(dirname(filepath))
-        # Retry with a readtimeout: a stale keep-alive connection can hang
-        # forever on the next request after a large download completes.
+        # Retry transient failures, removing any partial file each time.
         max_attempts = 3
         for attempt in 1:max_attempts
             @info "Starting download for $uri" * (attempt > 1 ? " (attempt $attempt/$max_attempts)" : "")
             try
-                HTTP.download(string(uri), filepath, headers; readtimeout = 30)
+                download(string(uri), filepath; headers)
                 break
             catch e
                 isfile(filepath) && rm(filepath)
                 attempt == max_attempts && throw(e)
-                @warn "Download stalled or failed, retrying with a fresh connection" exception = e
+                @warn "Download failed, retrying" exception = e
             end
         end
     end
