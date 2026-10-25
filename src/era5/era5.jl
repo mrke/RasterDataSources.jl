@@ -1,7 +1,6 @@
 
 const ARCO_ERA5_URL = "https://storage.googleapis.com/gcp-public-data-arco-era5/ar/full_37-1h-0p25deg-chunk-1.zarr-v3"
 
-struct ERA5 <: RasterDataSource end
 
 # Map layer symbols (short names) to ARCO-ERA5 variable names (long names)
 const ERA5_LAYERS = (
@@ -45,20 +44,20 @@ const ERA5_LAYERS = (
     lsm = "land_sea_mask",
 )
 
-layers(::Type{ERA5}) = keys(ERA5_LAYERS)
+layers(::Type{ERA5{SingleLevels,GoogleARCO}}) = keys(ERA5_LAYERS)
 
 """
-    layername(::Type{ERA5}, layer::Symbol) -> String
+    layername(::Type{ERA5{SingleLevels,GoogleARCO}}, layer::Symbol) -> String
 
 Convert a short layer name (e.g. `:t2m`) to the ARCO-ERA5 variable name (e.g. `"2m_temperature"`).
 """
-layername(::Type{ERA5}, layer::Symbol) = ERA5_LAYERS[layer]
+layername(::Type{ERA5{SingleLevels,GoogleARCO}}, layer::Symbol) = ERA5_LAYERS[layer]
 
 @doc """
-    ERA5 <: RasterDataSource
+    GoogleARCO <: ERA5Source
 
-ERA5 reanalysis via Google's public ARCO-ERA5 cloud-optimized Zarr store --
-no account needed. Hourly, 0.25°, 1940-present (~3 month lag). Access is
+[`ERA5`](@ref) from Google's public ARCO-ERA5 cloud-optimized Zarr store --
+no account needed. `SingleLevels` only: hourly, 0.25°, 1940-present (~3 month lag). Access is
 lazy: only the chunks you read are downloaded and cached locally.
 
 See: [ARCO-ERA5](https://cloud.google.com/storage/docs/public-datasets/era5)
@@ -73,14 +72,14 @@ source = getraster(ERA5)
 ds = RasterDataSources.open_zarr_store(source)
 temp = ds[layername(ERA5, :t2m)]  # "2m_temperature"
 ```
-""" ERA5
+""" GoogleARCO
 
-rasterpath(::Type{ERA5}) = joinpath(rasterpath(), "ERA5", "arco-era5-zarr")
+rasterpath(::Type{ERA5{SingleLevels,GoogleARCO}}) = joinpath(rasterpath(), "ERA5", "arco-era5-zarr")
 
 """
-    getraster(::Type{ERA5}) -> CachedCloudSource
+    getraster(::Type{ERA5{SingleLevels,GoogleARCO}}) -> CachedCloudSource
 
 Reference to the ARCO-ERA5 store; open with `RasterDataSources.open_zarr_store`
 (needs `using Zarr`).
 """
-getraster(::Type{ERA5}) = CachedCloudSource(ARCO_ERA5_URL, rasterpath(ERA5))
+getraster(::Type{ERA5{SingleLevels,GoogleARCO}}) = CachedCloudSource(ARCO_ERA5_URL, rasterpath(ERA5))

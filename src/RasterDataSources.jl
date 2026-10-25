@@ -16,7 +16,8 @@ using Dates,
 
 import JSON
 
-export WorldClim, CHELSA, EarthEnv, AWAP, ALWB, SRTM, CopernicusDEM, MODIS, ERA5, NCEP, TerraClimate, GRIDMET, SLGA, CRUCL2, CPCSoil, GADS, SILO, BARRA, ERA5CDS, ERA5CDSLand, ERA5ECMWF, ERA5ECMWFLand
+export WorldClim, CHELSA, EarthEnv, AWAP, ALWB, SRTM, CopernicusDEM, MODIS, ERA5, NCEP, TerraClimate, GRIDMET, SLGA, CRUCL2, CPCSoil, GADS, SILO, BARRA
+export SingleLevels, Land, GoogleARCO, CDS, ECMWF
 
 export BARRAR2, BARRAC2, AUS11, AUST11, AUST04, Static
 

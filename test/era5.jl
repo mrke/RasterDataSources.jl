@@ -24,4 +24,8 @@ using RasterDataSources: rasterpath, layername, layers, CachedCloudSource
     @test source.cache == era5_path
     # getraster only builds a reference; no filesystem side effect.
     @test !isdir(source.cache)
+
+    # Omitted parameters default to SingleLevels and GoogleARCO; ERA5-Land isn't on GoogleARCO
+    @test getraster(ERA5{SingleLevels}) == getraster(ERA5{SingleLevels,GoogleARCO}) == source
+    @test_throws ArgumentError getraster(ERA5{Land})
 end

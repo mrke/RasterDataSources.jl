@@ -1,7 +1,7 @@
 
 # ECMWF's own ARCO Zarr access for ERA5/ERA5-Land at
 # arco.datastores.ecmwf.int -- gated by the same CDS API key as
-# `ERA5CDS`/`ERA5CDSLand`, but authenticated HTTPS with no job queue. Each
+# `ERA5{<:Any,CDS}`, but authenticated HTTPS with no job queue. Each
 # dataset splits into several topic-group Zarr stores, so `layers(T)` here
 # means "topic group" (several variables each), not a single variable.
 
@@ -22,15 +22,13 @@ const ECMWF_ERA5_LAND_GROUPS = (
     sfc_skin_temperature       = (path = "sfc-skin-temperature",       bucket = 43),
 )
 
-abstract type AbstractERA5ECMWF <: RasterDataSource end
-
 @doc """
-    ERA5ECMWF <: RasterDataSource
+    ECMWF <: ERA5Source
 
-ERA5 (also behind [`ERA5`](@ref) and [`ERA5CDS`](@ref)), as an ARCO Zarr
-store hosted by ECMWF: gated by a CDS API key, no job queue (unlike
-[`ERA5CDS`](@ref)). An ARCO *representation* -- not guaranteed
-byte-identical to a CDS download.
+[`ERA5`](@ref) as ARCO Zarr stores hosted by ECMWF: gated by a CDS API key,
+with no job queue (unlike [`CDS`](@ref)). An ARCO *representation* -- not
+guaranteed byte-identical to a CDS download. Both products: `ERA5{SingleLevels,ECMWF}`
+and `ERA5{Land,ECMWF}`.
 
 !!! warning
     ECMWF/CDS describe ARCO access as a **beta service**. Licence: CC-BY.
@@ -38,11 +36,12 @@ byte-identical to a CDS download.
 Needs a CDS API key -- see `RasterDataSources._cds_credentials`.
 
 # Usage with `getraster`
-    getraster(T::Type{ERA5ECMWF}, layer; chunking=:geo)
+    getraster(T::Type{ERA5{<:ERA5Product,ECMWF}}, layer; chunking=:geo)
 
 # Arguments
 - `layer`: a `Symbol` naming a topic group (several variables each) --
-    `$(keys(ECMWF_ERA5_GROUPS))`. Required; no "all layers" default.
+    `$(keys(ECMWF_ERA5_GROUPS))` for `SingleLevels`, `$(keys(ECMWF_ERA5_LAND_GROUPS))`
+    for `Land`. Required; no "all layers" default.
 
 # Keywords
 - `chunking`: `:geo` (default, small area/long time) or `:time` (large
@@ -55,66 +54,48 @@ raw Zarr group, not a `Rasters.jl` object.
 # Example
 ```julia
 using RasterDataSources, Zarr
-source = getraster(ERA5ECMWF, :sfc)
+source = getraster(ERA5{Land,ECMWF}, :sfc_2m_temperature)
 ds = RasterDataSources.open_zarr_store(source)
 keys(ds.arrays)  # list the variables in this group
 ```
-""" ERA5ECMWF
-struct ERA5ECMWF <: AbstractERA5ECMWF end
-
-@doc """
-    ERA5ECMWFLand <: RasterDataSource
-
-ERA5-Land, the land-only, higher-resolution companion to ERA5, as an
-ECMWF-hosted ARCO Zarr store. See [`ERA5ECMWF`](@ref) for setup and usage --
-the only difference here is the `layer` groups: `$(keys(ECMWF_ERA5_LAND_GROUPS))`.
-
-# Example
-```julia
-using RasterDataSources, Zarr
-source = getraster(ERA5ECMWFLand, :sfc_2m_temperature)
-ds = RasterDataSources.open_zarr_store(source)
-keys(ds.arrays)  # list the variables in this group
-```
-""" ERA5ECMWFLand
-struct ERA5ECMWFLand <: AbstractERA5ECMWF end
+""" ECMWF
 
 # `_ecmwf_arco_*` names disambiguate from `era5.jl`'s unrelated GCP ARCO-ERA5 source.
-_ecmwf_arco_groups(::Type{ERA5ECMWF}) = ECMWF_ERA5_GROUPS
-_ecmwf_arco_groups(::Type{ERA5ECMWFLand}) = ECMWF_ERA5_LAND_GROUPS
-_ecmwf_arco_dataset_path(::Type{ERA5ECMWF}) = "reanalysis_era5_single_levels"
-_ecmwf_arco_dataset_path(::Type{ERA5ECMWFLand}) = "reanalysis_era5_land"
+_ecmwf_arco_groups(::Type{ERA5{SingleLevels,ECMWF}}) = ECMWF_ERA5_GROUPS
+_ecmwf_arco_groups(::Type{ERA5{Land,ECMWF}}) = ECMWF_ERA5_LAND_GROUPS
+_ecmwf_arco_dataset_path(::Type{ERA5{SingleLevels,ECMWF}}) = "reanalysis_era5_single_levels"
+_ecmwf_arco_dataset_path(::Type{ERA5{Land,ECMWF}}) = "reanalysis_era5_land"
 
-layers(T::Type{<:AbstractERA5ECMWF}) = keys(_ecmwf_arco_groups(T))
-getraster_keywords(::Type{<:AbstractERA5ECMWF}) = (:chunking,)
+layers(T::Type{<:ERA5{<:Any,ECMWF}}) = keys(_ecmwf_arco_groups(T))
+getraster_keywords(::Type{<:ERA5{<:Any,ECMWF}}) = (:chunking,)
 
 # `layer` here is a topic group (e.g. `:sfc`), not an individual variable array.
-layername(::Type{<:AbstractERA5ECMWF}, layer::Symbol) = string(layer)
+layername(::Type{<:ERA5{<:Any,ECMWF}}, layer::Symbol) = string(layer)
 
 _check_arco_chunking(chunking::Symbol) =
     chunking in (:geo, :time) || throw(ArgumentError("chunking must be :geo or :time, got $chunking"))
 
-function _ecmwf_arco_group_url(T::Type{<:AbstractERA5ECMWF}, layer::Symbol; chunking::Symbol=:geo)
+function _ecmwf_arco_group_url(T::Type{<:ERA5{<:Any,ECMWF}}, layer::Symbol; chunking::Symbol=:geo)
     group = _ecmwf_arco_groups(T)[layer]
     URI(scheme="https", host="arco.datastores.ecmwf.int",
         path="/cadl-arco-$chunking-$(lpad(group.bucket, 3, '0'))/arco/$(_ecmwf_arco_dataset_path(T))/$(group.path)/$(chunking)Chunked.zarr")
 end
 
-rasterpath(::Type{ERA5ECMWF}) = joinpath(rasterpath(), "ECMWF-ARCO-ERA5")
-rasterpath(::Type{ERA5ECMWFLand}) = joinpath(rasterpath(), "ECMWF-ARCO-ERA5-Land")
+rasterpath(::Type{ERA5{SingleLevels,ECMWF}}) = joinpath(rasterpath(), "ECMWF-ARCO-ERA5")
+rasterpath(::Type{ERA5{Land,ECMWF}}) = joinpath(rasterpath(), "ECMWF-ARCO-ERA5-Land")
 # geo- and time-chunked stores for the same group are different remote data.
-rasterpath(T::Type{<:AbstractERA5ECMWF}, layer::Symbol; chunking::Symbol=:geo) =
+rasterpath(T::Type{<:ERA5{<:Any,ECMWF}}, layer::Symbol; chunking::Symbol=:geo) =
     joinpath(rasterpath(T), string(layer), string(chunking))
 
 # No "all layers" default -- unlike the generic `getraster(T; kw...)`
 # fallback, a topic group must always be specified.
-getraster(T::Type{<:AbstractERA5ECMWF}; kw...) = throw(ArgumentError(
+getraster(T::Type{<:ERA5{<:Any,ECMWF}}; kw...) = throw(ArgumentError(
     "a topic group must be specified, e.g. getraster($T, :sfc); valid groups are $(layers(T))"
 ))
-getraster(T::Type{<:AbstractERA5ECMWF}, layers::Union{Tuple,Symbol}; chunking::Symbol=:geo) =
+getraster(T::Type{<:ERA5{<:Any,ECMWF}}, layers::Union{Tuple,Symbol}; chunking::Symbol=:geo) =
     (_check_arco_chunking(chunking); _getraster(T, layers, chunking))
-_getraster(T::Type{<:AbstractERA5ECMWF}, layers::Tuple, chunking) = _map_layers(T, layers, chunking)
-function _getraster(T::Type{<:AbstractERA5ECMWF}, layer::Symbol, chunking)
+_getraster(T::Type{<:ERA5{<:Any,ECMWF}}, layers::Tuple, chunking) = _map_layers(T, layers, chunking)
+function _getraster(T::Type{<:ERA5{<:Any,ECMWF}}, layer::Symbol, chunking)
     _check_layer(T, layer)
     # No `mkpath` here -- `getraster` only builds a reference; `Zarr.DirectoryStore`
     # creates the cache directory itself when the store is actually opened.

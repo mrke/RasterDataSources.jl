@@ -49,20 +49,13 @@ EarthEnv
 
 ```@docs
 ERA5
-```
-
-## ERA5CDS / ERA5CDSLand
-
-```@docs
-ERA5CDS
-ERA5CDSLand
-```
-
-## ERA5ECMWF / ERA5ECMWFLand
-
-```@docs
-ERA5ECMWF
-ERA5ECMWFLand
+RasterDataSources.ERA5Product
+SingleLevels
+Land
+RasterDataSources.ERA5Source
+GoogleARCO
+CDS
+ECMWF
 ```
 
 ## WorldClim
